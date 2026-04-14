@@ -1,0 +1,273 @@
+<Window x:Class="StallCamServer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="StallCam Server" Height="720" Width="1100"
+        MinHeight="560" MinWidth="800"
+        Background="#0D1117" Foreground="#E6EDF3"
+        WindowStartupLocation="CenterScreen"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background"       Value="#161B22"/>
+            <Setter Property="BorderBrush"      Value="#30363D"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="CornerRadius"     Value="8"/>
+            <Setter Property="Margin"           Value="0,0,0,8"/>
+        </Style>
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="FontSize"     Value="13"/>
+            <Setter Property="Foreground"   Value="#E6EDF3"/>
+            <Setter Property="Margin"       Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground"   Value="#8B949E"/>
+            <Setter Property="FontSize"     Value="12"/>
+        </Style>
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="Foreground"       Value="#58A6FF"/>
+            <Setter Property="FontFamily"       Value="Consolas"/>
+            <Setter Property="FontSize"         Value="12"/>
+            <Setter Property="TextAlignment"    Value="Right"/>
+        </Style>
+        <Style x:Key="GreenBtn" TargetType="Button">
+            <Setter Property="Background"       Value="#3FB950"/>
+            <Setter Property="Foreground"       Value="#000000"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Padding"          Value="14,8"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="OutlineBtn" TargetType="Button">
+            <Setter Property="Background"       Value="Transparent"/>
+            <Setter Property="Foreground"       Value="#E6EDF3"/>
+            <Setter Property="BorderBrush"      Value="#30363D"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="Padding"          Value="14,8"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RedBtn" TargetType="Button" BasedOn="{StaticResource OutlineBtn}">
+            <Setter Property="Foreground"   Value="#F85149"/>
+            <Setter Property="BorderBrush"  Value="#F85149"/>
+        </Style>
+        <Style TargetType="Slider">
+            <Setter Property="Foreground" Value="#3FB950"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background"       Value="#0D1117"/>
+            <Setter Property="Foreground"       Value="#E6EDF3"/>
+            <Setter Property="BorderBrush"      Value="#30363D"/>
+            <Setter Property="Padding"          Value="6,4"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E6EDF3"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background"   Value="#0D1117"/>
+            <Setter Property="Foreground"   Value="#58A6FF"/>
+            <Setter Property="BorderBrush"  Value="#30363D"/>
+            <Setter Property="Padding"      Value="6,4"/>
+            <Setter Property="FontFamily"   Value="Consolas"/>
+            <Setter Property="FontSize"     Value="11"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="*"/>     <!-- Content -->
+            <RowDefinition Height="90"/>    <!-- Log -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══ HEADER ══════════════════════════════════════════════════ -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="🐴 StallCam Server" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" Foreground="#E6EDF3"/>
+
+            <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4"
+                    Margin="12,0,6,0" Padding="10,4" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtEsp32Badge" Text="● ESP32: offline"
+                           FontFamily="Consolas" FontSize="11" Foreground="#F85149"/>
+            </Border>
+
+            <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4"
+                    Margin="0,0,6,0" Padding="10,4" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtViewerBadge" Text="Zuschauer: 0"
+                           FontFamily="Consolas" FontSize="11" Foreground="#8B949E"/>
+            </Border>
+
+            <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4"
+                    Padding="10,4" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtBoreBadge" Text="bore: –"
+                           FontFamily="Consolas" FontSize="11" Foreground="#8B949E"/>
+            </Border>
+        </StackPanel>
+
+        <!-- ═══ HAUPTINHALT ═════════════════════════════════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="300"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="310"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Livestream -->
+            <Border Grid.Column="0" Background="#000000" CornerRadius="8">
+                <Grid>
+                    <Image x:Name="StreamImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
+                    <Border Background="#F85149" CornerRadius="999" Padding="8,3"
+                            HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                        <TextBlock x:Name="TxtLiveBadge" Text="● LIVE" FontFamily="Consolas" FontSize="10" Foreground="White"/>
+                    </Border>
+                    <TextBlock x:Name="TxtOffline" Text="Kamera nicht verbunden"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="#8B949E" FontSize="16" Visibility="Collapsed"/>
+                </Grid>
+            </Border>
+
+            <!-- Rechte Spalte -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+
+                    <!-- Öffentliche URL -->
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Heading}" Text="🌐 Öffentliche URL"/>
+                            <TextBox x:Name="TxtBoreUrl" Text="Warte auf bore..." IsReadOnly="True" TextWrapping="Wrap"/>
+                            <Button Content="📋 Kopieren" Style="{StaticResource OutlineBtn}"
+                                    Margin="0,6,0,0" Click="BtnCopyUrl_Click"/>
+                            <Image x:Name="QrImage" MaxHeight="140" MaxWidth="140"
+                                   Margin="0,10,0,0" HorizontalAlignment="Left"
+                                   ToolTip="QR-Code scannen zum Öffnen am Handy"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Status -->
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Heading}" Text="📊 Status"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="22"/>
+                                    <RowDefinition Height="22"/>
+                                    <RowDefinition Height="22"/>
+                                    <RowDefinition Height="22"/>
+                                    <RowDefinition Height="22"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Label}" Text="Videos" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtVideos" Style="{StaticResource Value}" VerticalAlignment="Center" Text="–"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Label}" Text="SD belegt" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtSdUsed" Style="{StaticResource Value}" VerticalAlignment="Center" Text="–"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Label}" Text="SD gesamt" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtSdTotal" Style="{StaticResource Value}" VerticalAlignment="Center" Text="–"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Label}" Text="Intervall" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="TxtInterval" Style="{StaticResource Value}" VerticalAlignment="Center" Text="–"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource Label}" Text="Dauer" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TxtDuration" Style="{StaticResource Value}" VerticalAlignment="Center" Text="–"/>
+                            </Grid>
+                            <!-- SD-Füllstand -->
+                            <Border Background="#30363D" CornerRadius="3" Height="5" Margin="0,8,0,0">
+                                <Border x:Name="SdBar" Background="#3FB950" CornerRadius="3" HorizontalAlignment="Left" Width="0"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Einstellungen -->
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Heading}" Text="⚙️ Einstellungen"/>
+
+                            <TextBlock Style="{StaticResource Label}" Margin="0,0,0,2">
+                                Intervall: <Run x:Name="RunInterval" Text="10"/> min
+                            </TextBlock>
+                            <Slider x:Name="SliderInterval" Minimum="1" Maximum="120" Value="10" IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="SliderInterval_ValueChanged"/>
+
+                            <TextBlock Style="{StaticResource Label}" Margin="0,8,0,2">
+                                Aufnahmedauer: <Run x:Name="RunDuration" Text="5"/> sek
+                            </TextBlock>
+                            <Slider x:Name="SliderDuration" Minimum="2" Maximum="120" Value="5" IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="SliderDuration_ValueChanged"/>
+
+                            <TextBlock Style="{StaticResource Label}" Margin="0,8,0,4" Text="Auflösung"/>
+                            <ComboBox x:Name="CboResolution">
+                                <ComboBoxItem Tag="4">VGA (640×480) – sparsam</ComboBoxItem>
+                                <ComboBoxItem Tag="5" IsSelected="True">SVGA (800×600)</ComboBoxItem>
+                                <ComboBoxItem Tag="6">XGA (1024×768)</ComboBoxItem>
+                                <ComboBoxItem Tag="7">SXGA (1280×1024)</ComboBoxItem>
+                                <ComboBoxItem Tag="8">UXGA (1600×1200)</ComboBoxItem>
+                            </ComboBox>
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="🌙 Nachtsicht" VerticalAlignment="Center" FontSize="13" Foreground="#E6EDF3"/>
+                                <CheckBox   Grid.Column="1" x:Name="ChkNight" VerticalAlignment="Center"/>
+                            </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="💡 IR-LED auto" VerticalAlignment="Center" FontSize="13" Foreground="#E6EDF3"/>
+                                <CheckBox   Grid.Column="1" x:Name="ChkIrAuto" IsChecked="True" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Content="💾 Speichern"      Style="{StaticResource GreenBtn}"   Margin="0,0,8,0" Click="BtnSave_Click"/>
+                                <Button Content="🎬 Jetzt aufnehmen" Style="{StaticResource OutlineBtn}" Click="BtnRecord_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Aktionen -->
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Heading}" Text="🎞️ Videos"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="🔄 Liste laden"   Style="{StaticResource OutlineBtn}" Margin="0,0,8,0" Click="BtnLoadVideos_Click"/>
+                                <Button Content="🗑️ Alle löschen"  Style="{StaticResource RedBtn}"     Click="BtnDeleteAll_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="TxtVideoList" Foreground="#8B949E" FontFamily="Consolas"
+                                       FontSize="10" Margin="0,8,0,0" TextWrapping="Wrap"
+                                       Text="Klicke 'Liste laden' …"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ═══ LOG ══════════════════════════════════════════════════ -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,8,0,0" Padding="0">
+            <ScrollViewer x:Name="LogScroller" VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="TxtLog" FontFamily="Consolas" FontSize="10"
+                           Foreground="#8B949E" Padding="10,6" TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </Border>
+
+    </Grid>
+</Window>
