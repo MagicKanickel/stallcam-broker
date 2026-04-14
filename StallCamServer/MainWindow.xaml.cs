@@ -16,7 +16,7 @@ file static class Config
     public const string WebUser      = "Ludwig";           // ← Browser-Login Benutzername
     public const string WebPass      = "!blacky14/02$";     // ← Browser-Login Passwort
     public const string BrokerUrl = "https://stallcam-broker.onrender.com"; // ← Render.com URL, z.B. "https://stallcam-broker.onrender.com"
-    public const string BrokerSecret = "Ji8e83HUhr24hgU$§Pou"; // ← muss mit Broker übereinstimmen
+    public const string BrokerSecret = "broker-geheim123"; // ← muss mit Broker übereinstimmen
     public const int    LocalPort    = 8080;              // ← Port des lokalen Web-Servers
 }
 
@@ -112,7 +112,7 @@ public partial class MainWindow : Window
                 {
                     await Task.Delay(TimeSpan.FromMinutes(5), _cts.Token);
                     if (_bore.Url is { Length: > 0 } u)
-                        await RegisterWithBrokerAsync(u);
+                        await RegisterWithBrokerAsync(u.Replace("https://", "").Replace("http://", "").TrimEnd('/'));
                 }
             }, _cts.Token);
         }
