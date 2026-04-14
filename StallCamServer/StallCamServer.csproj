@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+<AssemblyName>StallCamServer</AssemblyName>
+    <RootNamespace>StallCamServer</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Kestrel Web-Server (für Browser + ESP32 WebSocket) -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- QR-Code Generierung -->
+    <PackageReference Include="QRCoder" Version="1.4.3" />
+  </ItemGroup>
+</Project>
