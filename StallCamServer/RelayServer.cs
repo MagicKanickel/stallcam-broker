@@ -150,7 +150,7 @@ public sealed class RelayServer
             try
             {
                 var data = await _fileTcs.Task.WaitAsync(TimeSpan.FromSeconds(60));
-                ctx.Response.ContentType = "application/octet-stream";
+                ctx.Response.ContentType = file.EndsWith(".avi") ? "video/x-msvideo" : "application/octet-stream";
                 ctx.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{file}\"";
                 await ctx.Response.Body.WriteAsync(data);
             }
@@ -233,7 +233,8 @@ public sealed class RelayServer
                     if (!root.TryGetProperty("type", out var typeEl)) continue;
                     var typeStr = typeEl.GetString();
 
-                    if (typeStr == "status")
+                    if (typeStr == "ping") { /* Cloudflare keepalive – ignorieren */ }
+                    else if (typeStr == "status")
                     {
                         _statusJson = text;
                         var status  = ParseStatus(root);

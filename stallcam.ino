@@ -182,6 +182,25 @@ bool initSD() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// AVI-MJPEG HILFSFUNKTIONEN
+// ═══════════════════════════════════════════════════════════════════════
+static void aviWriteU32(File &f, uint32_t v) {
+  uint8_t b[4] = {(uint8_t)v,(uint8_t)(v>>8),(uint8_t)(v>>16),(uint8_t)(v>>24)};
+  f.write(b, 4);
+}
+static void aviWriteU16(File &f, uint16_t v) {
+  uint8_t b[2] = {(uint8_t)v,(uint8_t)(v>>8)};
+  f.write(b, 2);
+}
+static void aviWriteTag(File &f, const char* t) { f.write((const uint8_t*)t, 4); }
+static void aviFixU32(File &f, uint32_t pos, uint32_t v) {
+  uint32_t cur = f.position();
+  f.seek(pos);
+  aviWriteU32(f, v);
+  f.seek(cur);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // VIDEO AUFNEHMEN
 // ═══════════════════════════════════════════════════════════════════════
 void recordVideo() {
@@ -190,41 +209,153 @@ void recordVideo() {
   digitalWrite(STATUS_LED, HIGH);
 
   char filename[48];
-  snprintf(filename, sizeof(filename), "/videos/vid_%04d.mjpeg", videoCount);
+  snprintf(filename, sizeof(filename), "/videos/vid_%04d.avi", videoCount);
   Serial.printf("Aufnahme: %s\n", filename);
 
   File f = SD.open(filename, FILE_WRITE);
   if (!f) { Serial.println("Datei-Fehler!"); return; }
 
+  // Auflösung aus camRes
+  uint16_t w, h;
+  switch(camRes) {
+    case 4: w=640;  h=480;  break;
+    case 6: w=1024; h=768;  break;
+    case 7: w=1280; h=1024; break;
+    case 8: w=1600; h=1200; break;
+    default: w=800; h=600;  break;  // SVGA
+  }
+  const uint32_t FPS   = 12;
+  const uint32_t usPF  = 1000000 / FPS;
+
+  // Kamera aufwärmen
   for (int i = 0; i < 5; i++) {
     camera_fb_t *fb = esp_camera_fb_get();
     if (fb) esp_camera_fb_return(fb);
     delay(100);
   }
 
+  // ── AVI-Header schreiben (mit Platzhaltern) ─────────────────────
+  // RIFF AVI
+  aviWriteTag(f, "RIFF");  aviWriteU32(f, 0);        // [4]  RIFF-Größe – Platzhalter
+  aviWriteTag(f, "AVI ");
+
+  // hdrl LIST (Größe fest = 192)
+  aviWriteTag(f, "LIST");  aviWriteU32(f, 192);
+  aviWriteTag(f, "hdrl");
+
+  // avih – Haupt-AVI-Header
+  aviWriteTag(f, "avih");  aviWriteU32(f, 56);
+  aviWriteU32(f, usPF);              // µs pro Frame
+  aviWriteU32(f, w*h*3*FPS);        // max Bytes/s
+  aviWriteU32(f, 0);                 // padding
+  aviWriteU32(f, 0x10);              // flags: AVIF_HASINDEX
+  aviWriteU32(f, 0);                 // [48] totalFrames – Platzhalter
+  aviWriteU32(f, 0);                 // initialFrames
+  aviWriteU32(f, 1);                 // streams
+  aviWriteU32(f, w*h*3);            // suggestedBufferSize
+  aviWriteU32(f, w);
+  aviWriteU32(f, h);
+  aviWriteU32(f,0); aviWriteU32(f,0); aviWriteU32(f,0); aviWriteU32(f,0); // reserved
+
+  // strl LIST (Größe fest = 116)
+  aviWriteTag(f, "LIST");  aviWriteU32(f, 116);
+  aviWriteTag(f, "strl");
+
+  // strh – Stream-Header
+  aviWriteTag(f, "strh");  aviWriteU32(f, 56);
+  aviWriteTag(f, "vids");  aviWriteTag(f, "MJPG");
+  aviWriteU32(f, 0);       // flags
+  aviWriteU16(f, 0);       // priority
+  aviWriteU16(f, 0);       // language
+  aviWriteU32(f, 0);       // initialFrames
+  aviWriteU32(f, 1);       // scale
+  aviWriteU32(f, FPS);     // rate
+  aviWriteU32(f, 0);       // start
+  aviWriteU32(f, 0);       // [140] length – Platzhalter
+  aviWriteU32(f, w*h*3);   // suggestedBufferSize
+  aviWriteU32(f, 0xFFFFFFFF); // quality
+  aviWriteU32(f, 0);       // sampleSize
+  aviWriteU16(f, 0); aviWriteU16(f, 0); aviWriteU16(f, w); aviWriteU16(f, h);
+
+  // strf – BITMAPINFOHEADER
+  aviWriteTag(f, "strf");  aviWriteU32(f, 40);
+  aviWriteU32(f, 40);      // biSize
+  aviWriteU32(f, w);
+  aviWriteU32(f, h);
+  aviWriteU16(f, 1);       // planes
+  aviWriteU16(f, 24);      // bitCount
+  aviWriteTag(f, "MJPG");  // compression
+  aviWriteU32(f, w*h*3);   // sizeImage
+  aviWriteU32(f, 0); aviWriteU32(f, 0); aviWriteU32(f, 0); aviWriteU32(f, 0);
+  // Header fertig bei Offset 212
+
+  // movi LIST
+  aviWriteTag(f, "LIST");  aviWriteU32(f, 0);  // [216] movi-Größe – Platzhalter
+  aviWriteTag(f, "movi");
+  // Frame-Daten ab Offset 224
+
+  // ── Frames aufnehmen ────────────────────────────────────────────
+  uint32_t maxFrames = (uint32_t)durationSec * FPS + 20;
+  uint32_t *fOff = (uint32_t*)malloc(maxFrames * 4);
+  uint32_t *fSz  = (uint32_t*)malloc(maxFrames * 4);
+  if (!fOff || !fSz) {
+    Serial.println("Kein RAM!"); free(fOff); free(fSz);
+    f.close(); SD.remove(filename); return;
+  }
+
+  uint32_t frameCnt  = 0;
   unsigned long endMs = millis() + (unsigned long)durationSec * 1000;
-  int frames = 0;
-  while (millis() < endMs) {
+
+  while (millis() < endMs && frameCnt < maxFrames) {
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) { delay(10); continue; }
-    uint32_t len = fb->len;
-    f.write((uint8_t*)&len, 4);
+
+    fOff[frameCnt] = f.position() - 224;  // Offset ab movi-Daten
+    fSz[frameCnt]  = fb->len;
+    frameCnt++;
+
+    aviWriteTag(f, "00dc");
+    aviWriteU32(f, fb->len);
     f.write(fb->buf, fb->len);
+    if (fb->len & 1) f.write((uint8_t)0);  // auf gerade Anzahl auffüllen
+
     esp_camera_fb_return(fb);
-    frames++;
   }
+
+  // ── idx1 schreiben ───────────────────────────────────────────────
+  uint32_t moviEnd = f.position();
+  aviWriteTag(f, "idx1");
+  aviWriteU32(f, frameCnt * 16);
+  for (uint32_t i = 0; i < frameCnt; i++) {
+    aviWriteTag(f, "00dc");
+    aviWriteU32(f, 0x10);       // AVIIF_KEYFRAME
+    aviWriteU32(f, fOff[i]);
+    aviWriteU32(f, fSz[i]);
+  }
+  uint32_t fileSize = f.position();
+
+  // ── Platzhalter ausfüllen ────────────────────────────────────────
+  aviFixU32(f,   4, fileSize - 8);          // RIFF-Größe
+  aviFixU32(f,  48, frameCnt);              // avih totalFrames
+  aviFixU32(f, 140, frameCnt);              // strh length
+  aviFixU32(f, 216, moviEnd - 220);         // movi LIST-Größe
+
   f.close();
+  free(fOff); free(fSz);
+
   videoCount++;
   saveSettings();
 
-  if (SD.usedBytes() > SD.totalBytes() * 0.92) {
+  // Ältestes löschen wenn SD fast voll
+  if (sdOk && SD.usedBytes() > SD.totalBytes() * 0.92) {
     char old[48];
-    snprintf(old, sizeof(old), "/videos/vid_%04d.mjpeg", videoCount - 400);
+    snprintf(old, sizeof(old), "/videos/vid_%04d.avi", videoCount - 400);
     if (SD.exists(old)) SD.remove(old);
   }
+
   if (irLedAuto) digitalWrite(IR_LED_PIN, LOW);
   digitalWrite(STATUS_LED, LOW);
-  Serial.printf("Fertig: %d Frames, vid_%04d.mjpeg\n", frames, videoCount-1);
+  Serial.printf("Fertig: %u Frames → %s\n", frameCnt, filename);
   if (relayConnected) sendRelayStatus();
 }
 
@@ -451,7 +582,8 @@ void wsRelayEvent(WStype_t type, uint8_t *payload, size_t length) {
 // RELAY – FreeRTOS-Task (Broker-Polling + WebSocket + Streaming)
 // ═══════════════════════════════════════════════════════════════════════
 void relayTask(void *param) {
-  unsigned long lastPoll = 0;
+  unsigned long lastPoll      = 0;
+  unsigned long lastKeepalive = 0;
 
   while(true) {
     unsigned long now = millis();
@@ -476,7 +608,7 @@ void relayTask(void *param) {
             relayWs.begin(newHost.c_str(), newPort, RELAY_PATH);
           relayWs.onEvent(wsRelayEvent);
           relayWs.setReconnectInterval(5000);
-          relayWs.enableHeartbeat(20000, 3000, 2);
+          relayWs.enableHeartbeat(8000, 5000, 3);
         }
       } else {
         Serial.println("Broker: keine URL verfügbar");
@@ -485,6 +617,12 @@ void relayTask(void *param) {
 
     // ── WebSocket keep-alive ───────────────────────────────────────
     relayWs.loop();
+
+    // ── Cloudflare Keepalive (alle 5s) ────────────────────────────
+    if (relayConnected && !relayStreaming && now - lastKeepalive >= 5000) {
+      lastKeepalive = now;
+      relayWs.sendTXT("{\"type\":\"ping\"}");
+    }
 
     // ── Frames senden wenn jemand zuschaut ────────────────────────
     if (relayStreaming && relayConnected) {
@@ -508,7 +646,7 @@ void initRelay() {
     return;
   }
   relayWs.onEvent(wsRelayEvent);
-  xTaskCreate(relayTask, "relay", 8192, NULL, 3, NULL);
+  xTaskCreate(relayTask, "relay", 20480, NULL, 3, NULL);
   Serial.println("Relay-Task gestartet");
 }
 
