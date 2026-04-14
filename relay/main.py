@@ -50,7 +50,11 @@ async def handle_register(req: web.Request) -> web.Response:
 
 
 async def handle_get_url(req: web.Request) -> web.Response:
-    return web.json_response(relay)
+    # Kompaktes JSON ohne Leerzeichen – ESP32 Parser erwartet "host":"..."
+    return web.Response(
+        text=json.dumps(relay, separators=(',', ':')),
+        content_type='application/json'
+    )
 
 
 async def handle_health(req: web.Request) -> web.Response:
