@@ -28,8 +28,8 @@
 #define AP_PASS     "pferd1234"
 
 // ─── Web-Interface Auth (lokaler Zugang) ─────────────────────────────
-#define CAM_USER    "admin"
-#define CAM_PASS    "stallcam123"           // ← anpassen
+#define CAM_USER    "Ludwig"
+#define CAM_PASS    "!blacky14/02$"           // ← anpassen
 
 // ─── URL-Broker (Render.com) ─────────────────────────────────────────
 // Nach Deployment die URL hier eintragen, z.B.:
@@ -265,6 +265,9 @@ bool fetchRelayUrl(String &outHost, int &outPort) {
   String body = http.getString();
   http.end();
 
+  // Leerzeichen entfernen damit Parser mit "host":"..." und "host": "..." klar kommt
+  body.replace(" ", "");
+
   // JSON parsen: {"host":"bore.pub","port":51234,"url":"bore.pub:51234"}
   int hostIdx = body.indexOf("\"host\":\"");
   int portIdx = body.indexOf("\"port\":");
@@ -367,6 +370,29 @@ static void handleRelayCommand(const String &msg) {
   else if (msg.indexOf("get_videos")   >= 0) { sendRelayVideoList(); }
   else if (msg.indexOf("record")       >= 0) {
     xTaskCreate([](void*){ recordVideo(); vTaskDelete(NULL); }, "rec_r", 8192, NULL, 5, NULL);
+  }
+  else if (msg.indexOf("\"download\"") >= 0) {
+    String k = "\"file\":\"";
+    int idx = msg.indexOf(k);
+    if (idx >= 0 && sdOk) {
+      idx += k.length();
+      int end = msg.indexOf('"', idx);
+      String fname = msg.substring(idx, end);
+      String fpath = "/videos/" + fname;
+      File f = SD.open(fpath);
+      if (f) {
+        String startMsg = "{\"type\":\"file_start\",\"file\":\"" + fname + "\",\"size\":" + f.size() + "}";
+        relayWs.sendTXT(startMsg.c_str());
+        uint8_t buf[4096];
+        while (f.available()) {
+          int len = f.read(buf, sizeof(buf));
+          relayWs.sendBIN(buf, len);
+          delay(5);
+        }
+        f.close();
+        relayWs.sendTXT("{\"type\":\"file_end\"}");
+      }
+    }
   }
   else if (msg.indexOf("delete_all")   >= 0) {
     if (sdOk) {

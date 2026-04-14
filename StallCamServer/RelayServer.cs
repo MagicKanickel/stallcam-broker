@@ -43,6 +43,8 @@ public sealed class RelayServer
     private readonly object     _viewersLock     = new();
     private byte[]?             _latestFrame;
     private string              _statusJson      = "{}";
+    private TaskCompletionSource<byte[]>? _fileTcs;
+    private MemoryStream?                 _fileBuffer;
 
     // ── Öffentliche Events (für WPF-Fenster) ─────────────────────────
     public event Action<byte[]>?    FrameReceived;
@@ -127,6 +129,43 @@ public sealed class RelayServer
 
         app.MapGet("/health", () => "ok");
 
+        app.MapGet("/download", async ctx =>
+        {
+            if (!CheckHttpAuth(ctx))
+            {
+                ctx.Response.Headers.WWWAuthenticate = "Basic realm=\"StallCam\"";
+                ctx.Response.StatusCode = 401;
+                return;
+            }
+            var file = ctx.Request.Query["file"].ToString();
+            if (string.IsNullOrEmpty(file) || _esp32 is not { } esp || esp.State != WebSocketState.Open)
+            {
+                ctx.Response.StatusCode = 503;
+                await ctx.Response.WriteAsync("ESP32 nicht verbunden");
+                return;
+            }
+            _fileTcs    = new TaskCompletionSource<byte[]>();
+            _fileBuffer = new MemoryStream();
+            await SendTextAsync(esp, JsonSerializer.Serialize(new { cmd = "download", file }), ct);
+            try
+            {
+                var data = await _fileTcs.Task.WaitAsync(TimeSpan.FromSeconds(60));
+                ctx.Response.ContentType = "application/octet-stream";
+                ctx.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{file}\"";
+                await ctx.Response.Body.WriteAsync(data);
+            }
+            catch (TimeoutException)
+            {
+                ctx.Response.StatusCode = 504;
+                await ctx.Response.WriteAsync("Timeout");
+            }
+            finally
+            {
+                _fileTcs    = null;
+                _fileBuffer = null;
+            }
+        });
+
         await app.StartAsync(ct);
         LogLine?.Invoke($"[server] Web-Server läuft auf Port {port}");
         await app.WaitForShutdownAsync(ct);
@@ -206,12 +245,27 @@ public sealed class RelayServer
                         VideoListReceived?.Invoke(text);
                         await BroadcastTextAsync(text, ct);
                     }
+                    else if (typeStr == "file_start")
+                    {
+                        _fileBuffer = new MemoryStream();
+                    }
+                    else if (typeStr == "file_end")
+                    {
+                        _fileTcs?.TrySetResult(_fileBuffer?.ToArray() ?? Array.Empty<byte>());
+                    }
                 }
                 else if (msgType == WebSocketMessageType.Binary && authenticated)
                 {
-                    _latestFrame = data;
-                    FrameReceived?.Invoke(data);
-                    await BroadcastBinaryAsync(data, ct);
+                    if (_fileBuffer != null)
+                    {
+                        await _fileBuffer.WriteAsync(data);
+                    }
+                    else
+                    {
+                        _latestFrame = data;
+                        FrameReceived?.Invoke(data);
+                        await BroadcastBinaryAsync(data, ct);
+                    }
                 }
             }
         }
@@ -485,7 +539,7 @@ public sealed class RelayServer
           } else if(d.type==='videos'){
             const el=document.getElementById('vlist');
             if(!d.files||!d.files.length){el.textContent='Keine Videos';return;}
-            el.innerHTML=d.files.map(f=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.82rem"><span style="font-family:Space Mono,monospace;color:var(--muted);font-size:.72rem">${f.name}</span><span style="color:var(--muted);font-size:.72rem">${fmb(f.size)} – nur lokal downloadbar</span></div>`).join('');
+            el.innerHTML=d.files.map(f=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:.82rem"><span style="font-family:Space Mono,monospace;color:var(--muted);font-size:.72rem">${f.name}</span><a href="/download?file=${f.name}" style="color:var(--green);font-size:.72rem;text-decoration:none" download="${f.name}">⬇ ${fmb(f.size)}</a></div>`).join('');
           } else if(d.type==='offline'){
             badge('cam-badge','● Kamera offline','off');
           }
